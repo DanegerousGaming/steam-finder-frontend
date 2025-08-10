@@ -203,82 +203,82 @@
         }
 
         async function updateSharedGames() {
-    if (selectedFriendIds.size === 0) {
-        sharedGamesGrid.innerHTML = '<p class="text-gray-500 col-span-full text-center mt-10">Please select some friends to see shared games.</p>';
-        updatePlayerChart([]);
-        return;
-    }
-
-    sharedGamesGrid.innerHTML = '<div class="loader col-span-full"></div>';
-    const allIds = [user.steamid, ...selectedFriendIds];
-    const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}`);
-
-    if (data && data.games && data.games.length > 0) {
-        sharedGamesGrid.innerHTML = '';
-        data.games.forEach(game => {
-            const gameCard = document.createElement('div');
-            gameCard.className = 'bg-gray-50 rounded-lg shadow-md overflow-hidden flex flex-col';
-            
-            let priceHTML;
-            if (game.is_free) {
-                priceHTML = `<p class="text-lg font-semibold text-green-600">Free to Play</p>`;
-            } else if (game.price_overview) {
-                if (game.price_overview.discount_percent > 0) {
-                    priceHTML = `<p class="text-lg font-bold text-red-500">${game.price_overview.final_formatted} <span class="text-sm text-gray-500 line-through ml-2">${game.price_overview.initial_formatted}</span></p>`;
-                } else {
-                    priceHTML = `<p class="text-lg font-semibold text-gray-700">${game.price_overview.final_formatted}</p>`;
-                }
-            } else {
-                priceHTML = `<p class="text-lg font-semibold text-gray-700">Price N/A</p>`;
+            if (selectedFriendIds.size === 0) {
+                sharedGamesGrid.innerHTML = '<p class="text-gray-500 col-span-full text-center mt-10">Please select some friends to see shared games.</p>';
+                updatePlayerChart([]);
+                return;
             }
-            
-            const ownershipPercentage = (game.owners.length / allIds.length) * 100;
 
-            const getAvatar = (id) => allGroupMembers.find(m => m.steamid === id)?.avatar || '';
-            const getPersonaname = (id) => allGroupMembers.find(m => m.steamid === id)?.personaname || 'Unknown';
+            sharedGamesGrid.innerHTML = '<div class="loader col-span-full"></div>';
+            const allIds = [user.steamid, ...selectedFriendIds];
+            const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}`);
 
-            const ownersHTML = game.owners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 border-2 border-green-500" title="${getPersonaname(id)}">`).join('');
-            const nonOwnersHTML = game.nonOwners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 opacity-40 border-2 border-red-500" title="${getPersonaname(id)}">`).join('');
+            if (data && data.games && data.games.length > 0) {
+                sharedGamesGrid.innerHTML = '';
+                data.games.forEach(game => {
+                    const gameCard = document.createElement('div');
+                    gameCard.className = 'bg-gray-50 rounded-lg shadow-md overflow-hidden flex flex-col';
+                    
+                    let priceHTML;
+                    if (game.is_free) {
+                        priceHTML = `<p class="text-lg font-semibold text-green-600">Free to Play</p>`;
+                    } else if (game.price_overview) {
+                        if (game.price_overview.discount_percent > 0) {
+                            priceHTML = `<p class="text-lg font-bold text-red-500">${game.price_overview.final_formatted} <span class="text-sm text-gray-500 line-through ml-2">${game.price_overview.initial_formatted}</span></p>`;
+                        } else {
+                            priceHTML = `<p class="text-lg font-semibold text-gray-700">${game.price_overview.final_formatted}</p>`;
+                        }
+                    } else {
+                        priceHTML = `<p class="text-lg font-semibold text-gray-700">Price N/A</p>`;
+                    }
+                    
+                    const ownershipPercentage = (game.owners.length / allIds.length) * 100;
 
-            gameCard.innerHTML = `
-                <div class="relative">
-                    <img src="${game.header_image}" alt="${game.name}" class="w-full h-32 object-cover">
-                    <div class="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs font-bold px-2 py-1 rounded">
-                        ${(game.player_count || 0).toLocaleString()} players
-                    </div>
-                </div>
-                <div class="p-4 flex-grow flex flex-col">
-                    <h3 class="text-lg font-bold">${game.name}</h3>
-                    <div class="mt-2 mb-3">
-                        <div class="flex justify-between items-center text-sm font-semibold text-gray-600 mb-1">
-                            <span>Ownership</span>
-                            <span>${game.owners.length} / ${allIds.length}</span>
+                    const getAvatar = (id) => allGroupMembers.find(m => m.steamid === id)?.avatar || '';
+                    const getPersonaname = (id) => allGroupMembers.find(m => m.steamid === id)?.personaname || 'Unknown';
+
+                    const ownersHTML = game.owners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 border-2 border-green-500" title="${getPersonaname(id)}">`).join('');
+                    const nonOwnersHTML = game.nonOwners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 opacity-40 border-2 border-red-500" title="${getPersonaname(id)}">`).join('');
+
+                    gameCard.innerHTML = `
+                        <div class="relative">
+                            <img src="${game.header_image}" alt="${game.name}" class="w-full h-32 object-cover">
+                            <div class="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs font-bold px-2 py-1 rounded">
+                                ${(game.player_count || 0).toLocaleString()} players
+                            </div>
                         </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${ownershipPercentage}%"></div>
+                        <div class="p-4 flex-grow flex flex-col">
+                            <h3 class="text-lg font-bold">${game.name}</h3>
+                            <div class="mt-2 mb-3">
+                                <div class="flex justify-between items-center text-sm font-semibold text-gray-600 mb-1">
+                                    <span>Ownership</span>
+                                    <span>${game.owners.length} / ${allIds.length}</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${ownershipPercentage}%"></div>
+                                </div>
+                            </div>
+                            <div class="flex items-center mt-2 avatar-list">
+                                <span class="text-green-600 font-bold mr-2 text-xs">HAVE:</span>
+                                ${ownersHTML}
+                            </div>
+                            <div class="flex items-center mt-2 avatar-list">
+                                <span class="text-red-600 font-bold mr-2 text-xs">NEED:</span>
+                                ${nonOwnersHTML}
+                            </div>
+                            <div class="mt-auto pt-4 text-right">
+                                ${priceHTML}
+                            </div>
                         </div>
-                    </div>
-                    <div class="flex items-center mt-2 avatar-list">
-                        <span class="text-green-600 font-bold mr-2 text-xs">HAVE:</span>
-                        ${ownersHTML}
-                    </div>
-                    <div class="flex items-center mt-2 avatar-list">
-                        <span class="text-red-600 font-bold mr-2 text-xs">NEED:</span>
-                        ${nonOwnersHTML}
-                    </div>
-                    <div class="mt-auto pt-4 text-right">
-                        ${priceHTML}
-                    </div>
-                </div>
-            `;
-            sharedGamesGrid.appendChild(gameCard);
-        });
-        updatePlayerChart(data.games);
-    } else {
-         sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found with at least 80% ownership.</p>`;
-         updatePlayerChart([]);
-    }
-}
+                    `;
+                    sharedGamesGrid.appendChild(gameCard);
+                });
+                updatePlayerChart(data.games);
+            } else {
+                 sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found with at least 80% ownership.</p>`;
+                 updatePlayerChart([]);
+            }
+        }
         
         function updatePlayerChart(games) {
             const ctx = document.getElementById('player-chart').getContext('2d');
