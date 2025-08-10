@@ -7,15 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Chosen Palette: Warm Neutrals -->
-    <!-- Application Structure Plan: The application uses a single-page, task-oriented dashboard structure. After a simulated login, the user lands on a central hub. This hub is divided into three main vertical sections: 'Friends List' on the left for selection, 'Shared Games' in the center for results, and 'Group Management' on the right for creating and managing friend groups. This structure was chosen to provide a clear, linear user flow: select friends, see results, and optionally save the group. This is highly intuitive for the task of finding a game to play. -->
-    <!-- Visualization & Content Choices: 
-        - Friends List: Goal: Inform/Select. Method: A simple scrollable list of HTML elements. Interaction: Clicking a friend toggles their selection state. Justification: This is a standard and universally understood UI pattern for selection.
-        - Shared Games: Goal: Inform/Compare. Method: A grid of game 'cards' using HTML/Tailwind. Each card displays an image, title, player count, and price. Interaction: None currently, but designed for future hovers/clicks. Justification: Cards provide a visually appealing and organized way to present distinct items with multiple data points.
-        - Player Count: Goal: Compare. Method: A horizontal bar chart via Chart.js. Interaction: Tooltips on hover. Justification: A bar chart is the most effective way to quickly compare the player counts of different games.
-        - Group Management: Goal: Organize. Method: Simple input fields and buttons. Interaction: Standard form input and button clicks. Justification: A straightforward form is all that's needed for the simple task of naming and saving a group.
-    -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -46,6 +37,10 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        .avatar-list img {
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -78,9 +73,9 @@
             </aside>
 
             <section class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-bold mb-4 border-b pb-2">Shared Games</h2>
-                <p class="mb-4 text-gray-600">Select friends from the list to see which games you have in common. The list will update automatically.</p>
-                <div id="shared-games-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 h-[40rem] overflow-y-auto p-2">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2">Matching Games (80%+)</h2>
+                <p class="mb-4 text-gray-600">Select friends to see games that most of you own. The list will update automatically.</p>
+                <div id="shared-games-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 h-[40rem] overflow-y-auto p-2">
                      <p class="text-gray-500 col-span-full text-center mt-10">Please select some friends to see shared games.</p>
                 </div>
             </section>
@@ -109,7 +104,6 @@
     </div>
 
     <script>
-        // IMPORTANT: Replace this with your actual Vercel backend URL
         const BACKEND_URL = 'https://streamgamemate.vercel.app'; 
 
         const loginScreen = document.getElementById('login-screen');
@@ -122,6 +116,7 @@
         
         let user = null;
         let friends = [];
+        let allGroupMembers = [];
         let selectedFriendIds = new Set();
         let playerChart;
 
@@ -144,7 +139,6 @@
                 <button id="logout-button" class="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition">Logout</button>
             `;
             document.getElementById('logout-button').addEventListener('click', () => {
-                // Clear the user session and redirect to the login page without params
                 window.location.href = window.location.pathname;
             });
         }
@@ -154,6 +148,7 @@
             const data = await apiFetch(`/api/friends?steamid=${user.steamid}`);
             if (data && data.friendslist && data.friendslist.friends) {
                 friends = data.friendslist.friends;
+                allGroupMembers = [user, ...friends];
                 friendsListContainer.innerHTML = '';
                 friends.forEach(friend => {
                     const friendDiv = document.createElement('div');
@@ -214,7 +209,7 @@
                 sharedGamesGrid.innerHTML = '';
                 data.games.forEach(game => {
                     const gameCard = document.createElement('div');
-                    gameCard.className = 'bg-gray-50 rounded-lg shadow-md overflow-hidden transform hover:scale-105 transition-transform duration-300';
+                    gameCard.className = 'bg-gray-50 rounded-lg shadow-md overflow-hidden flex flex-col';
                     
                     let priceHTML = `<p class="text-lg font-semibold text-green-600">${game.price_overview ? game.price_overview.final_formatted : 'Free to Play'}</p>`;
                     if (game.price_overview && game.price_overview.discount_percent > 0) {
@@ -222,17 +217,42 @@
                     } else if (!game.price_overview && !game.is_free) {
                         priceHTML = `<p class="text-lg font-semibold text-gray-700">N/A</p>`;
                     }
+                    
+                    const ownershipPercentage = (game.owners.length / allIds.length) * 100;
 
+                    const getAvatar = (id) => allGroupMembers.find(m => m.steamid === id)?.avatar || '';
+
+                    const ownersHTML = game.owners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
+                    const nonOwnersHTML = game.nonOwners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 opacity-40" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
 
                     gameCard.innerHTML = `
-                        <img src="${game.header_image}" alt="${game.name}" class="w-full h-48 object-cover">
-                        <div class="p-4">
+                        <div class="relative">
+                            <img src="${game.header_image}" alt="${game.name}" class="w-full h-32 object-cover">
+                            <div class="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs font-bold px-2 py-1 rounded">
+                                ${(game.player_count || 0).toLocaleString()} players
+                            </div>
+                        </div>
+                        <div class="p-4 flex-grow flex flex-col">
                             <h3 class="text-lg font-bold">${game.name}</h3>
-                            <div class="flex justify-between items-center mt-2">
-                                ${priceHTML}
-                                <div class="text-sm text-gray-700">
-                                    <span class="font-semibold">${(game.player_count || 0).toLocaleString()}</span> players
+                            <div class="mt-2 mb-3">
+                                <div class="flex justify-between items-center text-sm font-semibold text-gray-600 mb-1">
+                                    <span>Ownership</span>
+                                    <span>${game.owners.length} / ${allIds.length}</span>
                                 </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${ownershipPercentage}%"></div>
+                                </div>
+                            </div>
+                             <div class="flex items-center mt-2 avatar-list">
+                                <span class="text-green-600 font-bold mr-2 text-xs">HAVE:</span>
+                                ${ownersHTML}
+                            </div>
+                            <div class="flex items-center mt-2 avatar-list">
+                                <span class="text-red-600 font-bold mr-2 text-xs">NEED:</span>
+                                ${nonOwnersHTML}
+                            </div>
+                            <div class="mt-auto pt-4 text-right">
+                                ${priceHTML}
                             </div>
                         </div>
                     `;
@@ -240,7 +260,7 @@
                 });
                 updatePlayerChart(data.games);
             } else {
-                 sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No shared games found for the selected friends.</p>`;
+                 sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found with at least 80% ownership.</p>`;
                  updatePlayerChart([]);
             }
         }
