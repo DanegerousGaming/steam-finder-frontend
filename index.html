@@ -221,9 +221,10 @@
                     const ownershipPercentage = (game.owners.length / allIds.length) * 100;
 
                     const getAvatar = (id) => allGroupMembers.find(m => m.steamid === id)?.avatar || '';
+                    const getPersonaname = (id) => allGroupMembers.find(m => m.steamid === id)?.personaname || 'Unknown';
 
-                    const ownersHTML = game.owners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
-                    const nonOwnersHTML = game.nonOwners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 opacity-40" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
+                    const ownersHTML = game.owners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 border-2 border-green-500" title="${getPersonaname(id)}">`).join('');
+                    const nonOwnersHTML = game.nonOwners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 opacity-40 border-2 border-red-500" title="${getPersonaname(id)}">`).join('');
 
                     gameCard.innerHTML = `
                         <div class="relative">
@@ -243,7 +244,7 @@
                                     <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${ownershipPercentage}%"></div>
                                 </div>
                             </div>
-                             <div class="flex items-center mt-2 avatar-list">
+                            <div class="flex items-center mt-2 avatar-list">
                                 <span class="text-green-600 font-bold mr-2 text-xs">HAVE:</span>
                                 ${ownersHTML}
                             </div>
