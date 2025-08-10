@@ -211,11 +211,17 @@
                     const gameCard = document.createElement('div');
                     gameCard.className = 'bg-gray-50 rounded-lg shadow-md overflow-hidden flex flex-col';
                     
-                    let priceHTML = `<p class="text-lg font-semibold text-green-600">${game.price_overview ? game.price_overview.final_formatted : 'Free to Play'}</p>`;
-                    if (game.price_overview && game.price_overview.discount_percent > 0) {
-                        priceHTML = `<p class="text-lg font-bold text-red-500">${game.price_overview.final_formatted} <span class="text-sm text-gray-500 line-through ml-2">${game.price_overview.initial_formatted}</span></p>`;
-                    } else if (!game.price_overview && !game.is_free) {
-                        priceHTML = `<p class="text-lg font-semibold text-gray-700">N/A</p>`;
+                    let priceHTML;
+                    if (game.is_free) {
+                        priceHTML = `<p class="text-lg font-semibold text-green-600">Free to Play</p>`;
+                    } else if (game.price_overview) {
+                        if (game.price_overview.discount_percent > 0) {
+                            priceHTML = `<p class="text-lg font-bold text-red-500">${game.price_overview.final_formatted} <span class="text-sm text-gray-500 line-through ml-2">${game.price_overview.initial_formatted}</span></p>`;
+                        } else {
+                            priceHTML = `<p class="text-lg font-semibold text-gray-700">${game.price_overview.final_formatted}</p>`;
+                        }
+                    } else {
+                        priceHTML = `<p class="text-lg font-semibold text-gray-700">Price N/A</p>`;
                     }
                     
                     const ownershipPercentage = (game.owners.length / allIds.length) * 100;
