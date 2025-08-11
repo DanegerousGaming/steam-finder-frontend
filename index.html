@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Streams Friend Game Finder</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
@@ -97,6 +96,18 @@
                     <button id="save-group-button" class="w-full mt-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition">Save Group</button>
                 </div>
                 
+                <div class="mb-6">
+                    <label for="currency-selector" class="block font-semibold mb-2">Currency:</label>
+                    <select id="currency-selector" class="w-full p-2 border rounded-md">
+                        <option value="AU">AUD ($)</option>
+                        <option value="US">USD ($)</option>
+                        <option value="GB">GBP (£)</option>
+                        <option value="EU">EUR (€)</option>
+                        <option value="NZ">NZD ($)</option>
+                        <option value="CA">CAD ($)</option>
+                    </select>
+                </div>
+
                 <h2 class="text-xl font-bold mb-4 border-b pb-2">Player Counts</h2>
                  <div id="player-count-list" class="h-48 overflow-y-auto text-sm space-y-2"></div>
             </aside>
@@ -136,6 +147,7 @@
         const schedulerModalContent = document.getElementById('scheduler-modal-content');
         const planGameNightBtn = document.getElementById('plan-gamenight-btn');
         const genreFiltersContainer = document.getElementById('genre-filters');
+        const currencySelector = document.getElementById('currency-selector');
         
         // State
         let user = null;
@@ -144,6 +156,7 @@
         let selectedFriendIds = new Set();
         let allSharedGames = [];
         let activeGenreFilter = 'All';
+        let selectedCurrency = localStorage.getItem('steamCurrency') || 'AU';
 
         async function apiFetch(endpoint) {
             try {
@@ -240,7 +253,7 @@
 
             sharedGamesGrid.innerHTML = '<div class="loader col-span-full"></div>';
             const allIds = [user.steamid, ...selectedFriendIds];
-            const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}`);
+            const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}&cc=${selectedCurrency.toLowerCase()}`);
 
             if (data && data.games) {
                 allSharedGames = data.games;
@@ -259,9 +272,7 @@
                 : allSharedGames.filter(g => g.genres && g.genres.some(genre => genre.description === activeGenreFilter));
 
             if (filteredGames.length > 0) {
-                // Calculate Best Match
                 const bestMatch = findBestMatch(filteredGames);
-
                 filteredGames.forEach(game => {
                     const gameCard = createGameCard(game, bestMatch === game.steam_appid);
                     sharedGamesGrid.appendChild(gameCard);
@@ -541,8 +552,16 @@
         helpModal.addEventListener('click', (e) => { if (e.target === helpModal) hideHelpModal(); });
         schedulerModal.addEventListener('click', (e) => { if (e.target === schedulerModal) hideSchedulerModal(); });
         planGameNightBtn.addEventListener('click', showSchedulerModal);
+        currencySelector.addEventListener('change', (e) => {
+            selectedCurrency = e.target.value;
+            localStorage.setItem('steamCurrency', selectedCurrency);
+            if (selectedFriendIds.size > 0) {
+                updateSharedGames();
+            }
+        });
 
         window.onload = async () => {
+            currencySelector.value = selectedCurrency;
             const urlParams = new URLSearchParams(window.location.search);
             const steamid = urlParams.get('steamid');
 
