@@ -42,30 +42,29 @@
             border: 2px solid white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        /* New styles for expandable cards */
+        /* Updated styles for expandable cards */
         .game-card {
             transition: all 0.3s ease-in-out;
             cursor: pointer;
         }
         .game-card.expanded {
-            transform: scale(1.05);
+            transform: scale(1.08);
             z-index: 10;
             box-shadow: 0 8px 30px rgba(0,0,0,0.12);
         }
-        @media (min-width: 768px) {
-            .game-card.expanded {
-                grid-column: span 2;
-            }
-        }
         .game-details {
-            transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out;
+            transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out, padding 0.5s ease-in-out;
             max-height: 0;
             opacity: 0;
             overflow: hidden;
+            padding-top: 0;
+            padding-bottom: 0;
         }
         .game-card.expanded .game-details {
             max-height: 500px; /* Large enough to fit content */
             opacity: 1;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
         }
     </style>
 </head>
@@ -267,18 +266,20 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="game-details px-4 pb-4 border-t border-gray-200 pt-4">
-                            <p class="text-sm text-gray-600 mb-4">${game.short_description || ''}</p>
-                            <div class="flex items-center mt-2 avatar-list">
-                                <span class="text-green-600 font-bold mr-2 text-xs w-12">HAVE:</span>
-                                <div class="flex flex-wrap">${ownersHTML}</div>
-                            </div>
-                            <div class="flex items-center mt-2 avatar-list">
-                                <span class="text-red-600 font-bold mr-2 text-xs w-12">NEED:</span>
-                                <div class="flex flex-wrap">${nonOwnersHTML}</div>
-                            </div>
-                            <div class="mt-4 pt-4 text-right border-t border-gray-200">
-                                ${priceHTML}
+                        <div class="game-details px-4">
+                            <div class="border-t border-gray-200 pt-4">
+                                <p class="text-sm text-gray-600 mb-4">${game.short_description || ''}</p>
+                                <div class="flex items-center mt-2 avatar-list">
+                                    <span class="text-green-600 font-bold mr-2 text-xs w-12">HAVE:</span>
+                                    <div class="flex flex-wrap">${ownersHTML}</div>
+                                </div>
+                                <div class="flex items-center mt-2 avatar-list">
+                                    <span class="text-red-600 font-bold mr-2 text-xs w-12">NEED:</span>
+                                    <div class="flex flex-wrap">${nonOwnersHTML}</div>
+                                </div>
+                                <div class="mt-4 pt-4 text-right border-t border-gray-200">
+                                    ${priceHTML}
+                                </div>
                             </div>
                         </div>
                     `;
