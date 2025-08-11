@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -42,12 +43,35 @@
             border: 2px solid white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        /* New styles for modal */
         #game-modal {
             transition: opacity 0.3s ease;
         }
         #game-modal-content {
             transition: transform 0.3s ease;
+        }
+        .info-tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .info-tooltip .tooltip-text {
+            visibility: hidden;
+            width: 220px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -110px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .info-tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
         }
     </style>
 </head>
@@ -73,8 +97,15 @@
         <main class="p-4 md:p-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
             
             <aside class="lg:col-span-1 bg-white p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-bold mb-4 border-b pb-2">Friends List</h2>
-                <div id="friends-list" class="space-y-3 h-96 overflow-y-auto">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-xl font-bold">Friends List</h2>
+                    <div class="info-tooltip">
+                        <i class="fas fa-info-circle text-gray-400 cursor-pointer"></i>
+                        <span class="tooltip-text">If a friend is missing, their Steam profile may be set to private.</span>
+                    </div>
+                </div>
+                <input type="text" id="friend-search" class="w-full p-2 border rounded-md mb-4" placeholder="Search friends...">
+                <div id="friends-list" class="space-y-3 h-80 overflow-y-auto">
                     <div class="loader"></div>
                 </div>
             </aside>
@@ -129,6 +160,7 @@
         const selectedFriendsList = document.getElementById('selected-friends-list');
         const gameModal = document.getElementById('game-modal');
         const gameModalContent = document.getElementById('game-modal-content');
+        const friendSearch = document.getElementById('friend-search');
         
         let user = null;
         let friends = [];
@@ -159,25 +191,40 @@
             });
         }
 
-        async function renderFriends() {
+        function displayFriends(friendsToDisplay) {
+            friendsListContainer.innerHTML = '';
+            if (friendsToDisplay.length === 0) {
+                friendsListContainer.innerHTML = '<p class="text-gray-500 p-4 text-center">No friends found.</p>';
+                return;
+            }
+            friendsToDisplay.forEach(friend => {
+                const friendDiv = document.createElement('div');
+                const isSelected = selectedFriendIds.has(friend.steamid);
+                friendDiv.className = `p-3 rounded-lg cursor-pointer transition flex items-center justify-between ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200'}`;
+                friendDiv.innerHTML = `<span>${friend.personaname}</span><img src="${friend.avatar}" class="w-8 h-8 rounded-full">`;
+                friendDiv.dataset.friendId = friend.steamid;
+                friendDiv.onclick = () => toggleFriendSelection(friend.steamid, friendDiv);
+                friendsListContainer.appendChild(friendDiv);
+            });
+        }
+
+        async function fetchAndRenderFriends() {
             friendsListContainer.innerHTML = '<div class="loader"></div>';
             const data = await apiFetch(`/api/friends?steamid=${user.steamid}`);
             if (data && data.friendslist && data.friendslist.friends) {
-                friends = data.friendslist.friends;
+                friends = data.friendslist.friends.sort((a, b) => a.personaname.localeCompare(b.personaname));
                 allGroupMembers = [user, ...friends];
-                friendsListContainer.innerHTML = '';
-                friends.forEach(friend => {
-                    const friendDiv = document.createElement('div');
-                    friendDiv.className = 'p-3 rounded-lg cursor-pointer transition flex items-center justify-between bg-gray-200';
-                    friendDiv.innerHTML = `<span>${friend.personaname}</span><img src="${friend.avatar}" class="w-8 h-8 rounded-full">`;
-                    friendDiv.dataset.friendId = friend.steamid;
-                    friendDiv.onclick = () => toggleFriendSelection(friend.steamid, friendDiv);
-                    friendsListContainer.appendChild(friendDiv);
-                });
+                displayFriends(friends);
             } else {
                 friendsListContainer.innerHTML = '<p class="text-gray-500">Could not load friends list. Your profile might be private.</p>';
             }
         }
+
+        friendSearch.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredFriends = friends.filter(friend => friend.personaname.toLowerCase().includes(searchTerm));
+            displayFriends(filteredFriends);
+        });
 
         function toggleFriendSelection(friendId, element) {
             if (selectedFriendIds.has(friendId)) {
@@ -231,7 +278,7 @@
 
                     gameCard.innerHTML = `
                         <div class="relative">
-                            <img src="${game.header_image}" alt="${game.name}" class="w-full h-32 object-cover">
+                            <img src="${game.header_image}" alt="${game.name}" class="w-full h-48 object-cover">
                             <div class="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs font-bold px-2 py-1 rounded">
                                 ${(game.player_count || 0).toLocaleString()} players
                             </div>
@@ -372,7 +419,7 @@
                     loginScreen.classList.add('hidden');
                     appDashboard.classList.remove('hidden');
                     renderUserProfile();
-                    renderFriends();
+                    fetchAndRenderFriends();
                     updatePlayerChart([]);
                 } else {
                     alert('Could not verify user. Please try logging in again.');
