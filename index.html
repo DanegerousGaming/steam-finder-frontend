@@ -29,11 +29,15 @@
             border: 2px solid white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        #game-modal, #help-modal {
+        #game-modal, #help-modal, #scheduler-modal {
             transition: opacity 0.3s ease;
         }
-        #game-modal-content, #help-modal-content {
+        #game-modal-content, #help-modal-content, #scheduler-modal-content {
             transition: transform 0.3s ease;
+        }
+        .genre-filter-btn.active {
+            background-color: #2563eb;
+            color: white;
         }
     </style>
 </head>
@@ -52,8 +56,7 @@
     <div id="app-dashboard" class="hidden">
         <header class="bg-white shadow-md p-4 flex justify-between items-center">
             <h1 class="text-2xl font-bold">Game Finder Dashboard</h1>
-            <div id="user-profile" class="flex items-center">
-            </div>
+            <div id="user-profile" class="flex items-center"></div>
         </header>
 
         <main class="p-4 md:p-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -70,8 +73,13 @@
             </aside>
 
             <section class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-bold mb-4 border-b pb-2">Matching Games (80%+)</h2>
-                <p class="mb-4 text-gray-600">Select friends to see games that most of you own. Click a card to see details.</p>
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-xl font-bold">Matching Games (80%+)</h2>
+                    <button id="plan-gamenight-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition text-sm">
+                        <i class="fas fa-calendar-alt mr-2"></i>Plan a Game Night
+                    </button>
+                </div>
+                <div id="genre-filters" class="flex flex-wrap gap-2 mb-4"></div>
                 <div id="shared-games-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 h-[40rem] overflow-y-auto p-2">
                      <p class="text-gray-500 col-span-full text-center mt-10">Please select some friends to see shared games.</p>
                 </div>
@@ -81,9 +89,7 @@
                 <h2 class="text-xl font-bold mb-4 border-b pb-2">Group Management</h2>
                 <div class="mb-6">
                     <h3 class="font-semibold mb-2">Selected Friends:</h3>
-                    <div id="selected-friends-list" class="flex flex-wrap gap-2">
-                        <p class="text-gray-500">None selected.</p>
-                    </div>
+                    <div id="selected-friends-list" class="flex flex-wrap gap-2"></div>
                 </div>
                 <div class="mb-6">
                     <label for="group-name" class="block font-semibold mb-2">Group Name:</label>
@@ -92,9 +98,7 @@
                 </div>
                 
                 <h2 class="text-xl font-bold mb-4 border-b pb-2">Player Counts</h2>
-                 <div id="player-count-list" class="h-48 overflow-y-auto text-sm space-y-2">
-                    <p class="text-gray-500">Select friends to see player counts.</p>
-                 </div>
+                 <div id="player-count-list" class="h-48 overflow-y-auto text-sm space-y-2"></div>
             </aside>
         </main>
     </div>
@@ -104,26 +108,17 @@
         <div id="game-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform scale-95"></div>
     </div>
     <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden opacity-0">
-        <div id="help-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-lg p-6 transform scale-95">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold">Private Profiles</h2>
-                <button id="close-help-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
-            </div>
-            <p class="mb-4">If a friend is not appearing in your list, or if their games aren't showing up, their Steam profile is likely set to "Private" or "Friends Only".</p>
-            <p class="font-bold mb-2">How to fix it:</p>
-            <ol class="list-decimal list-inside space-y-2 text-gray-700">
-                <li>Open Steam and go to your Profile page.</li>
-                <li>Click the "Edit Profile" button.</li>
-                <li>Go to the "Privacy Settings" tab on the left.</li>
-                <li>Set "My Profile" and "Game Details" to **Public**.</li>
-            </ol>
-        </div>
+        <div id="help-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-lg p-6 transform scale-95"></div>
+    </div>
+    <div id="scheduler-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden opacity-0">
+        <div id="scheduler-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-2xl p-6 transform scale-95"></div>
     </div>
 
 
     <script>
         const BACKEND_URL = 'https://streamgamemate.vercel.app'; 
 
+        // DOM Elements
         const loginScreen = document.getElementById('login-screen');
         const appDashboard = document.getElementById('app-dashboard');
         const loginButton = document.getElementById('login-button');
@@ -137,11 +132,18 @@
         const playerCountList = document.getElementById('player-count-list');
         const helpIcon = document.getElementById('help-icon');
         const helpModal = document.getElementById('help-modal');
+        const schedulerModal = document.getElementById('scheduler-modal');
+        const schedulerModalContent = document.getElementById('scheduler-modal-content');
+        const planGameNightBtn = document.getElementById('plan-gamenight-btn');
+        const genreFiltersContainer = document.getElementById('genre-filters');
         
+        // State
         let user = null;
         let friends = [];
         let allGroupMembers = [];
         let selectedFriendIds = new Set();
+        let allSharedGames = [];
+        let activeGenreFilter = 'All';
 
         async function apiFetch(endpoint) {
             try {
@@ -175,7 +177,7 @@
             friendsToDisplay.forEach(friend => {
                 const friendDiv = document.createElement('div');
                 const isSelected = selectedFriendIds.has(friend.steamid);
-                const isPrivate = !friend.personaname; // Infer private profile
+                const isPrivate = !friend.personaname;
                 friendDiv.className = `p-3 rounded-lg cursor-pointer transition flex items-center justify-between ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200'} ${isPrivate ? 'opacity-50' : ''}`;
                 friendDiv.innerHTML = `<span>${isPrivate ? 'Private Profile' : friend.personaname}</span><img src="${friend.avatar}" class="w-8 h-8 rounded-full">`;
                 friendDiv.dataset.friendId = friend.steamid;
@@ -200,22 +202,13 @@
             }
         }
 
-        friendSearch.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filteredFriends = friends.filter(friend => (friend.personaname || '').toLowerCase().includes(searchTerm));
-            displayFriends(filteredFriends);
-        });
-
         function toggleFriendSelection(friendId, element) {
             if (selectedFriendIds.has(friendId)) {
                 selectedFriendIds.delete(friendId);
-                element.classList.remove('bg-blue-500', 'text-white');
-                element.classList.add('bg-gray-200');
             } else {
                 selectedFriendIds.add(friendId);
-                element.classList.add('bg-blue-500', 'text-white');
-                element.classList.remove('bg-gray-200');
             }
+            displayFriends(friends); // Re-render to update selection styles
             updateSharedGames();
             updateSelectedFriendsList();
         }
@@ -241,6 +234,7 @@
             if (selectedFriendIds.size === 0) {
                 sharedGamesGrid.innerHTML = '<p class="text-gray-500 col-span-full text-center mt-10">Please select some friends to see shared games.</p>';
                 updatePlayerCountList([]);
+                genreFiltersContainer.innerHTML = '';
                 return;
             }
 
@@ -248,45 +242,119 @@
             const allIds = [user.steamid, ...selectedFriendIds];
             const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}`);
 
-            if (data && data.games && data.games.length > 0) {
-                sharedGamesGrid.innerHTML = '';
-                data.games.forEach(game => {
-                    const gameCard = document.createElement('div');
-                    gameCard.className = 'game-card bg-gray-50 rounded-lg shadow-md overflow-hidden cursor-pointer transition-transform hover:scale-105';
-                    
-                    const ownershipPercentage = (game.owners.length / allIds.length) * 100;
-
-                    gameCard.innerHTML = `
-                        <div class="relative">
-                            <img src="${game.header_image}" alt="${game.name}" class="w-full h-48 object-cover">
-                            <div class="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs font-bold px-2 py-1 rounded">
-                                ${(game.player_count || 0).toLocaleString()} players
-                            </div>
-                        </div>
-                        <div class="p-4">
-                            <h3 class="text-lg font-bold truncate">${game.name}</h3>
-                            <div class="mt-2">
-                                <div class="flex justify-between items-center text-sm font-semibold text-gray-600 mb-1">
-                                    <span>Ownership</span>
-                                    <span>${game.owners.length} / ${allIds.length}</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${ownershipPercentage}%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    sharedGamesGrid.appendChild(gameCard);
-
-                    gameCard.addEventListener('click', () => showGameModal(game, allIds.length));
-                });
-                updatePlayerCountList(data.games);
+            if (data && data.games) {
+                allSharedGames = data.games;
+                renderFilteredGames();
+                renderGenreFilters();
             } else {
                  sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found with at least 80% ownership.</p>`;
                  updatePlayerCountList([]);
             }
         }
         
+        function renderFilteredGames() {
+            sharedGamesGrid.innerHTML = '';
+            const filteredGames = activeGenreFilter === 'All' 
+                ? allSharedGames 
+                : allSharedGames.filter(g => g.genres && g.genres.some(genre => genre.description === activeGenreFilter));
+
+            if (filteredGames.length > 0) {
+                // Calculate Best Match
+                const bestMatch = findBestMatch(filteredGames);
+
+                filteredGames.forEach(game => {
+                    const gameCard = createGameCard(game, bestMatch === game.steam_appid);
+                    sharedGamesGrid.appendChild(gameCard);
+                });
+                updatePlayerCountList(filteredGames);
+            } else {
+                sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found for the selected filter.</p>`;
+                updatePlayerCountList([]);
+            }
+        }
+
+        function createGameCard(game, isBestMatch) {
+            const gameCard = document.createElement('div');
+            gameCard.className = 'game-card bg-gray-50 rounded-lg shadow-md overflow-hidden cursor-pointer transition-transform hover:scale-105 relative';
+            
+            const allIds = [user.steamid, ...selectedFriendIds];
+            const ownershipPercentage = (game.owners.length / allIds.length) * 100;
+            const avgPlaytime = calculateAveragePlaytime(game.playtimes, game.owners);
+
+            gameCard.innerHTML = `
+                ${isBestMatch ? '<div class="absolute top-2 -left-2 bg-yellow-400 text-yellow-800 text-xs font-bold px-3 py-1 rounded-r-full shadow-lg transform -rotate-12">⭐ Best Match</div>' : ''}
+                <div class="relative">
+                    <img src="${game.header_image}" alt="${game.name}" class="w-full h-48 object-cover">
+                    <div class="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs font-bold px-2 py-1 rounded">
+                        ${(game.player_count || 0).toLocaleString()} players
+                    </div>
+                </div>
+                <div class="p-4">
+                    <h3 class="text-lg font-bold truncate">${game.name}</h3>
+                    <p class="text-xs text-gray-500 font-medium">Avg. Playtime: ${avgPlaytime} hrs</p>
+                    <div class="mt-2">
+                        <div class="flex justify-between items-center text-sm font-semibold text-gray-600 mb-1">
+                            <span>Ownership</span>
+                            <span>${game.owners.length} / ${allIds.length}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${ownershipPercentage}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            gameCard.addEventListener('click', () => showGameModal(game, allIds.length));
+            return gameCard;
+        }
+
+        function renderGenreFilters() {
+            const genres = new Set();
+            allSharedGames.forEach(game => {
+                if (game.genres) {
+                    game.genres.forEach(genre => genres.add(genre.description));
+                }
+            });
+
+            genreFiltersContainer.innerHTML = `<button class="genre-filter-btn active bg-gray-200 text-gray-800 text-xs font-bold px-3 py-1 rounded-full" data-genre="All">All</button>`;
+            [...genres].sort().forEach(genre => {
+                genreFiltersContainer.innerHTML += `<button class="genre-filter-btn bg-gray-200 text-gray-800 text-xs font-bold px-3 py-1 rounded-full" data-genre="${genre}">${genre}</button>`;
+            });
+
+            document.querySelectorAll('.genre-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelector('.genre-filter-btn.active').classList.remove('active');
+                    btn.classList.add('active');
+                    activeGenreFilter = btn.dataset.genre;
+                    renderFilteredGames();
+                });
+            });
+        }
+
+        function calculateAveragePlaytime(playtimes, owners) {
+            if (!playtimes || owners.length === 0) return 0;
+            const totalMinutes = owners.reduce((sum, ownerId) => sum + (playtimes[ownerId] || 0), 0);
+            return Math.round(totalMinutes / owners.length / 60);
+        }
+
+        function findBestMatch(games) {
+            let bestGame = null;
+            let lowestVariance = Infinity;
+
+            games.forEach(game => {
+                const playtimesInHours = game.owners.map(id => (game.playtimes[id] || 0) / 60);
+                if (playtimesInHours.length < 2) return;
+
+                const mean = playtimesInHours.reduce((a, b) => a + b, 0) / playtimesInHours.length;
+                const variance = playtimesInHours.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / playtimesInHours.length;
+
+                if (variance < lowestVariance) {
+                    lowestVariance = variance;
+                    bestGame = game.steam_appid;
+                }
+            });
+            return bestGame;
+        }
+
         function showGameModal(game, totalPlayers) {
             let priceHTML = `<p class="text-2xl font-bold text-green-600">${game.price_overview ? game.price_overview.final_formatted : 'Free to Play'}</p>`;
             if (game.price_overview && game.price_overview.discount_percent > 0) {
@@ -351,16 +419,31 @@
         }
 
         function showHelpModal() {
+            helpModalContent.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Private Profiles</h2>
+                    <button id="close-help-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+                </div>
+                <p class="mb-4">If a friend is not appearing in your list, or if their games aren't showing up, their Steam profile is likely set to "Private" or "Friends Only".</p>
+                <p class="font-bold mb-2">How to fix it:</p>
+                <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                    <li>Open Steam and go to your Profile page.</li>
+                    <li>Click the "Edit Profile" button.</li>
+                    <li>Go to the "Privacy Settings" tab on the left.</li>
+                    <li>Set "My Profile" and "Game Details" to <strong>Public</strong>.</li>
+                </ol>
+            `;
             helpModal.classList.remove('hidden');
             setTimeout(() => {
                 helpModal.classList.remove('opacity-0');
-                helpModal.querySelector('#help-modal-content').classList.remove('scale-95');
+                helpModalContent.classList.remove('scale-95');
             }, 10);
+            document.getElementById('close-help-btn').addEventListener('click', hideHelpModal);
         }
 
         function hideHelpModal() {
             helpModal.classList.add('opacity-0');
-            helpModal.querySelector('#help-modal-content').classList.add('scale-95');
+            helpModalContent.classList.add('scale-95');
             setTimeout(() => {
                 helpModal.classList.add('hidden');
             }, 300);
@@ -384,20 +467,80 @@
                     playerCountList.appendChild(gameDiv);
                 });
         }
-
-        loginButton.addEventListener('click', () => {
-            window.location.href = `${BACKEND_URL}/auth/steam`;
-        });
-
-        gameModal.addEventListener('click', (e) => {
-            if (e.target === gameModal) hideGameModal();
-        });
         
+        function showSchedulerModal() {
+            const topGames = allSharedGames.sort((a,b) => b.owners.length - a.owners.length).slice(0, 5);
+            
+            const gameOptionsHTML = topGames.map(game => `
+                <label class="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100">
+                    <input type="checkbox" name="game-vote" value="${game.name}" class="h-4 w-4">
+                    <span>${game.name}</span>
+                </label>
+            `).join('');
+
+            schedulerModalContent.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Plan a Game Night</h2>
+                    <button id="close-scheduler-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+                </div>
+                <p class="mb-4 text-gray-600">Select a few games and a date to create a shareable event link.</p>
+                <div class="mb-4">
+                    <label class="font-bold">1. Choose Games to Vote On:</label>
+                    <div class="mt-2 space-y-1">${gameOptionsHTML}</div>
+                </div>
+                <div class="mb-6">
+                    <label for="event-date" class="font-bold">2. Pick a Date & Time:</label>
+                    <input type="datetime-local" id="event-date" class="w-full p-2 border rounded-md mt-2">
+                </div>
+                <button id="create-event-btn" class="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition">Create Sharable Link</button>
+            `;
+            
+            schedulerModal.classList.remove('hidden');
+            setTimeout(() => {
+                schedulerModal.classList.remove('opacity-0');
+                schedulerModalContent.classList.remove('scale-95');
+            }, 10);
+
+            document.getElementById('close-scheduler-btn').addEventListener('click', hideSchedulerModal);
+            document.getElementById('create-event-btn').addEventListener('click', createEventLink);
+        }
+
+        function hideSchedulerModal() {
+            schedulerModal.classList.add('opacity-0');
+            schedulerModalContent.classList.add('scale-95');
+            setTimeout(() => schedulerModal.classList.add('hidden'), 300);
+        }
+
+        function createEventLink() {
+            const selectedGames = Array.from(document.querySelectorAll('input[name="game-vote"]:checked')).map(cb => cb.value);
+            const eventDateInput = document.getElementById('event-date');
+            if (selectedGames.length === 0 || !eventDateInput.value) {
+                alert('Please select at least one game and a date.');
+                return;
+            }
+            
+            const eventDate = new Date(eventDateInput.value);
+            const formattedDate = eventDate.toLocaleString([], { dateStyle: 'full', timeStyle: 'short' });
+
+            const subject = "Game Night!";
+            let body = `Hey everyone,\n\nLet's play something on ${formattedDate}!\n\nVote for what you want to play:\n`;
+            selectedGames.forEach(game => {
+                body += `- ${game}\n`;
+            });
+            body += `\nSee you then!`;
+
+            window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            hideSchedulerModal();
+        }
+
+
+        // Event Listeners
+        loginButton.addEventListener('click', () => window.location.href = `${BACKEND_URL}/auth/steam`);
+        gameModal.addEventListener('click', (e) => { if (e.target === gameModal) hideGameModal(); });
         helpIcon.addEventListener('click', showHelpModal);
-        helpModal.addEventListener('click', (e) => {
-            if (e.target === helpModal) hideHelpModal();
-        });
-        document.getElementById('close-help-btn').addEventListener('click', hideHelpModal);
+        helpModal.addEventListener('click', (e) => { if (e.target === helpModal) hideHelpModal(); });
+        schedulerModal.addEventListener('click', (e) => { if (e.target === schedulerModal) hideSchedulerModal(); });
+        planGameNightBtn.addEventListener('click', showSchedulerModal);
 
         window.onload = async () => {
             const urlParams = new URLSearchParams(window.location.search);
