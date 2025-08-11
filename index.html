@@ -12,20 +12,6 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        .chart-container {
-            position: relative;
-            width: 100%;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-            height: 250px;
-            max-height: 300px;
-        }
-        @media (min-width: 768px) {
-            .chart-container {
-                height: 350px;
-            }
-        }
         .loader {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3498db;
@@ -43,35 +29,11 @@
             border: 2px solid white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        #game-modal {
+        #game-modal, #help-modal {
             transition: opacity 0.3s ease;
         }
-        #game-modal-content {
+        #game-modal-content, #help-modal-content {
             transition: transform 0.3s ease;
-        }
-        .info-tooltip {
-            position: relative;
-            display: inline-block;
-        }
-        .info-tooltip .tooltip-text {
-            visibility: hidden;
-            width: 220px;
-            background-color: #555;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 8px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -110px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .info-tooltip:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
         }
     </style>
 </head>
@@ -99,10 +61,7 @@
             <aside class="lg:col-span-1 bg-white p-6 rounded-lg shadow-lg">
                 <div class="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 class="text-xl font-bold">Friends List</h2>
-                    <div class="info-tooltip">
-                        <i class="fas fa-info-circle text-gray-400 cursor-pointer"></i>
-                        <span class="tooltip-text">If a friend is missing, their Steam profile may be set to private.</span>
-                    </div>
+                    <i id="help-icon" class="fas fa-info-circle text-gray-400 cursor-pointer"></i>
                 </div>
                 <input type="text" id="friend-search" class="w-full p-2 border rounded-md mb-4" placeholder="Search friends...">
                 <div id="friends-list" class="space-y-3 h-80 overflow-y-auto">
@@ -133,17 +92,31 @@
                 </div>
                 
                 <h2 class="text-xl font-bold mb-4 border-b pb-2">Player Counts</h2>
-                 <div class="chart-container">
-                    <canvas id="player-chart"></canvas>
-                </div>
+                 <div id="player-count-list" class="h-48 overflow-y-auto text-sm space-y-2">
+                    <p class="text-gray-500">Select friends to see player counts.</p>
+                 </div>
             </aside>
         </main>
     </div>
 
-    <!-- Game Details Modal -->
+    <!-- Modals -->
     <div id="game-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden opacity-0">
-        <div id="game-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform scale-95">
-            <!-- Content will be injected by JavaScript -->
+        <div id="game-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform scale-95"></div>
+    </div>
+    <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden opacity-0">
+        <div id="help-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-lg p-6 transform scale-95">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Private Profiles</h2>
+                <button id="close-help-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <p class="mb-4">If a friend is not appearing in your list, or if their games aren't showing up, their Steam profile is likely set to "Private" or "Friends Only".</p>
+            <p class="font-bold mb-2">How to fix it:</p>
+            <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                <li>Open Steam and go to your Profile page.</li>
+                <li>Click the "Edit Profile" button.</li>
+                <li>Go to the "Privacy Settings" tab on the left.</li>
+                <li>Set "My Profile" and "Game Details" to **Public**.</li>
+            </ol>
         </div>
     </div>
 
@@ -161,12 +134,14 @@
         const gameModal = document.getElementById('game-modal');
         const gameModalContent = document.getElementById('game-modal-content');
         const friendSearch = document.getElementById('friend-search');
+        const playerCountList = document.getElementById('player-count-list');
+        const helpIcon = document.getElementById('help-icon');
+        const helpModal = document.getElementById('help-modal');
         
         let user = null;
         let friends = [];
         let allGroupMembers = [];
         let selectedFriendIds = new Set();
-        let playerChart;
 
         async function apiFetch(endpoint) {
             try {
@@ -200,10 +175,15 @@
             friendsToDisplay.forEach(friend => {
                 const friendDiv = document.createElement('div');
                 const isSelected = selectedFriendIds.has(friend.steamid);
-                friendDiv.className = `p-3 rounded-lg cursor-pointer transition flex items-center justify-between ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200'}`;
-                friendDiv.innerHTML = `<span>${friend.personaname}</span><img src="${friend.avatar}" class="w-8 h-8 rounded-full">`;
+                const isPrivate = !friend.personaname; // Infer private profile
+                friendDiv.className = `p-3 rounded-lg cursor-pointer transition flex items-center justify-between ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200'} ${isPrivate ? 'opacity-50' : ''}`;
+                friendDiv.innerHTML = `<span>${isPrivate ? 'Private Profile' : friend.personaname}</span><img src="${friend.avatar}" class="w-8 h-8 rounded-full">`;
                 friendDiv.dataset.friendId = friend.steamid;
-                friendDiv.onclick = () => toggleFriendSelection(friend.steamid, friendDiv);
+                if (!isPrivate) {
+                    friendDiv.onclick = () => toggleFriendSelection(friend.steamid, friendDiv);
+                } else {
+                    friendDiv.onclick = () => showHelpModal();
+                }
                 friendsListContainer.appendChild(friendDiv);
             });
         }
@@ -212,7 +192,7 @@
             friendsListContainer.innerHTML = '<div class="loader"></div>';
             const data = await apiFetch(`/api/friends?steamid=${user.steamid}`);
             if (data && data.friendslist && data.friendslist.friends) {
-                friends = data.friendslist.friends.sort((a, b) => a.personaname.localeCompare(b.personaname));
+                friends = data.friendslist.friends.sort((a, b) => (a.personaname || 'Z').localeCompare(b.personaname || 'Z'));
                 allGroupMembers = [user, ...friends];
                 displayFriends(friends);
             } else {
@@ -222,7 +202,7 @@
 
         friendSearch.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
-            const filteredFriends = friends.filter(friend => friend.personaname.toLowerCase().includes(searchTerm));
+            const filteredFriends = friends.filter(friend => (friend.personaname || '').toLowerCase().includes(searchTerm));
             displayFriends(filteredFriends);
         });
 
@@ -260,7 +240,7 @@
         async function updateSharedGames() {
             if (selectedFriendIds.size === 0) {
                 sharedGamesGrid.innerHTML = '<p class="text-gray-500 col-span-full text-center mt-10">Please select some friends to see shared games.</p>';
-                updatePlayerChart([]);
+                updatePlayerCountList([]);
                 return;
             }
 
@@ -300,10 +280,10 @@
 
                     gameCard.addEventListener('click', () => showGameModal(game, allIds.length));
                 });
-                updatePlayerChart(data.games);
+                updatePlayerCountList(data.games);
             } else {
                  sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found with at least 80% ownership.</p>`;
-                 updatePlayerChart([]);
+                 updatePlayerCountList([]);
             }
         }
         
@@ -370,32 +350,39 @@
             }, 300);
         }
 
-        function updatePlayerChart(games) {
-            const ctx = document.getElementById('player-chart').getContext('2d');
-            const chartData = {
-                labels: games.map(g => g.name.length > 16 ? g.name.substring(0, 13) + '...' : g.name),
-                datasets: [{
-                    label: 'Current Players',
-                    data: games.map(g => g.player_count || 0),
-                    backgroundColor: 'rgba(59, 130, 246, 0.5)',
-                    borderColor: 'rgba(59, 130, 246, 1)',
-                    borderWidth: 1
-                }]
-            };
+        function showHelpModal() {
+            helpModal.classList.remove('hidden');
+            setTimeout(() => {
+                helpModal.classList.remove('opacity-0');
+                helpModal.querySelector('#help-modal-content').classList.remove('scale-95');
+            }, 10);
+        }
 
-            if (playerChart) playerChart.destroy();
-            
-            playerChart = new Chart(ctx, {
-                type: 'bar',
-                data: chartData,
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { beginAtZero: true } }
-                }
-            });
+        function hideHelpModal() {
+            helpModal.classList.add('opacity-0');
+            helpModal.querySelector('#help-modal-content').classList.add('scale-95');
+            setTimeout(() => {
+                helpModal.classList.add('hidden');
+            }, 300);
+        }
+
+        function updatePlayerCountList(games) {
+            playerCountList.innerHTML = '';
+            if (games.length === 0) {
+                playerCountList.innerHTML = '<p class="text-gray-500">No games to display.</p>';
+                return;
+            }
+            games
+                .sort((a, b) => (b.player_count || 0) - (a.player_count || 0))
+                .forEach(game => {
+                    const gameDiv = document.createElement('div');
+                    gameDiv.className = 'flex justify-between items-center';
+                    gameDiv.innerHTML = `
+                        <span class="truncate pr-2">${game.name}</span>
+                        <span class="font-bold">${(game.player_count || 0).toLocaleString()}</span>
+                    `;
+                    playerCountList.appendChild(gameDiv);
+                });
         }
 
         loginButton.addEventListener('click', () => {
@@ -403,10 +390,14 @@
         });
 
         gameModal.addEventListener('click', (e) => {
-            if (e.target === gameModal) {
-                hideGameModal();
-            }
+            if (e.target === gameModal) hideGameModal();
         });
+        
+        helpIcon.addEventListener('click', showHelpModal);
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) hideHelpModal();
+        });
+        document.getElementById('close-help-btn').addEventListener('click', hideHelpModal);
 
         window.onload = async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -420,7 +411,7 @@
                     appDashboard.classList.remove('hidden');
                     renderUserProfile();
                     fetchAndRenderFriends();
-                    updatePlayerChart([]);
+                    updatePlayerCountList([]);
                 } else {
                     alert('Could not verify user. Please try logging in again.');
                 }
