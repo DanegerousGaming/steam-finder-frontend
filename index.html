@@ -42,29 +42,12 @@
             border: 2px solid white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        /* Updated styles for expandable cards */
-        .game-card {
-            transition: all 0.3s ease-in-out;
-            cursor: pointer;
+        /* New styles for modal */
+        #game-modal {
+            transition: opacity 0.3s ease;
         }
-        .game-card.expanded {
-            transform: scale(1.08);
-            z-index: 10;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-        }
-        .game-details {
-            transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out, padding 0.5s ease-in-out;
-            max-height: 0;
-            opacity: 0;
-            overflow: hidden;
-            padding-top: 0;
-            padding-bottom: 0;
-        }
-        .game-card.expanded .game-details {
-            max-height: 500px; /* Large enough to fit content */
-            opacity: 1;
-            padding-top: 1rem;
-            padding-bottom: 1rem;
+        #game-modal-content {
+            transition: transform 0.3s ease;
         }
     </style>
 </head>
@@ -123,9 +106,16 @@
                     <canvas id="player-chart"></canvas>
                 </div>
             </aside>
-
         </main>
     </div>
+
+    <!-- Game Details Modal -->
+    <div id="game-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden opacity-0">
+        <div id="game-modal-content" class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform scale-95">
+            <!-- Content will be injected by JavaScript -->
+        </div>
+    </div>
+
 
     <script>
         const BACKEND_URL = 'https://streamgamemate.vercel.app'; 
@@ -137,6 +127,8 @@
         const friendsListContainer = document.getElementById('friends-list');
         const sharedGamesGrid = document.getElementById('shared-games-grid');
         const selectedFriendsList = document.getElementById('selected-friends-list');
+        const gameModal = document.getElementById('game-modal');
+        const gameModalContent = document.getElementById('game-modal-content');
         
         let user = null;
         let friends = [];
@@ -233,19 +225,9 @@
                 sharedGamesGrid.innerHTML = '';
                 data.games.forEach(game => {
                     const gameCard = document.createElement('div');
-                    gameCard.className = 'game-card bg-gray-50 rounded-lg shadow-md overflow-hidden';
-                    
-                    let priceHTML = `<p class="text-lg font-semibold text-green-600">${game.price_overview ? game.price_overview.final_formatted : 'Free to Play'}</p>`;
-                    if (game.price_overview && game.price_overview.discount_percent > 0) {
-                        priceHTML = `<p class="text-lg font-bold text-red-500">${game.price_overview.final_formatted} <span class="text-sm text-gray-500 line-through ml-2">${game.price_overview.initial_formatted}</span></p>`;
-                    } else if (!game.price_overview && !game.is_free) {
-                        priceHTML = `<p class="text-lg font-semibold text-gray-700">N/A</p>`;
-                    }
+                    gameCard.className = 'game-card bg-gray-50 rounded-lg shadow-md overflow-hidden cursor-pointer transition-transform hover:scale-105';
                     
                     const ownershipPercentage = (game.owners.length / allIds.length) * 100;
-                    const getAvatar = (id) => allGroupMembers.find(m => m.steamid === id)?.avatar || '';
-                    const ownersHTML = game.owners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
-                    const nonOwnersHTML = game.nonOwners.map(id => `<img src="${getAvatar(id)}" class="w-8 h-8 rounded-full -ml-2 opacity-40" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
 
                     gameCard.innerHTML = `
                         <div class="relative">
@@ -266,33 +248,10 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="game-details px-4">
-                            <div class="border-t border-gray-200 pt-4">
-                                <p class="text-sm text-gray-600 mb-4">${game.short_description || ''}</p>
-                                <div class="flex items-center mt-2 avatar-list">
-                                    <span class="text-green-600 font-bold mr-2 text-xs w-12">HAVE:</span>
-                                    <div class="flex flex-wrap">${ownersHTML}</div>
-                                </div>
-                                <div class="flex items-center mt-2 avatar-list">
-                                    <span class="text-red-600 font-bold mr-2 text-xs w-12">NEED:</span>
-                                    <div class="flex flex-wrap">${nonOwnersHTML}</div>
-                                </div>
-                                <div class="mt-4 pt-4 text-right border-t border-gray-200">
-                                    ${priceHTML}
-                                </div>
-                            </div>
-                        </div>
                     `;
                     sharedGamesGrid.appendChild(gameCard);
 
-                    gameCard.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const isExpanded = gameCard.classList.contains('expanded');
-                        document.querySelectorAll('.game-card.expanded').forEach(card => card.classList.remove('expanded'));
-                        if (!isExpanded) {
-                            gameCard.classList.add('expanded');
-                        }
-                    });
+                    gameCard.addEventListener('click', () => showGameModal(game, allIds.length));
                 });
                 updatePlayerChart(data.games);
             } else {
@@ -301,6 +260,69 @@
             }
         }
         
+        function showGameModal(game, totalPlayers) {
+            let priceHTML = `<p class="text-2xl font-bold text-green-600">${game.price_overview ? game.price_overview.final_formatted : 'Free to Play'}</p>`;
+            if (game.price_overview && game.price_overview.discount_percent > 0) {
+                priceHTML = `<div class="text-right">
+                                <p class="text-2xl font-bold text-red-500">${game.price_overview.final_formatted}</p>
+                                <p class="text-md text-gray-500 line-through">${game.price_overview.initial_formatted}</p>
+                             </div>`;
+            } else if (!game.price_overview && !game.is_free) {
+                priceHTML = `<p class="text-2xl font-bold text-gray-700">N/A</p>`;
+            }
+
+            const getAvatar = (id) => allGroupMembers.find(m => m.steamid === id)?.avatar || '';
+            const ownersHTML = game.owners.map(id => `<img src="${getAvatar(id)}" class="w-10 h-10 rounded-full border-2 border-white" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
+            const nonOwnersHTML = game.nonOwners.map(id => `<img src="${getAvatar(id)}" class="w-10 h-10 rounded-full border-2 border-white" title="${allGroupMembers.find(m => m.steamid === id)?.personaname || ''}">`).join('');
+
+            gameModalContent.innerHTML = `
+                <img src="${game.header_image}" alt="${game.name}" class="w-full h-48 object-cover rounded-t-lg">
+                <div class="p-6">
+                    <div class="flex justify-between items-start">
+                        <h2 class="text-3xl font-bold mb-2">${game.name}</h2>
+                        <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+                    </div>
+                    <p class="text-gray-600 mb-6">${game.short_description || ''}</p>
+                    
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <h3 class="font-bold text-lg mb-3">Ownership Details (${game.owners.length} / ${totalPlayers})</h3>
+                        <div class="mb-4">
+                            <h4 class="font-semibold text-green-700 mb-2">Who Has It:</h4>
+                            <div class="flex flex-wrap gap-2">${ownersHTML || 'None'}</div>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-red-700 mb-2">Who Needs It:</h4>
+                            <div class="flex flex-wrap gap-2">${nonOwnersHTML || 'None'}</div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center mt-6 pt-4 border-t">
+                        <div class="text-gray-700">
+                            <span class="font-bold">${(game.player_count || 0).toLocaleString()}</span>
+                            <span> players online now</span>
+                        </div>
+                        ${priceHTML}
+                    </div>
+                </div>
+            `;
+
+            gameModal.classList.remove('hidden');
+            setTimeout(() => {
+                gameModal.classList.remove('opacity-0');
+                gameModalContent.classList.remove('scale-95');
+            }, 10);
+
+            document.getElementById('close-modal-btn').addEventListener('click', hideGameModal);
+        }
+
+        function hideGameModal() {
+            gameModal.classList.add('opacity-0');
+            gameModalContent.classList.add('scale-95');
+            setTimeout(() => {
+                gameModal.classList.add('hidden');
+            }, 300);
+        }
+
         function updatePlayerChart(games) {
             const ctx = document.getElementById('player-chart').getContext('2d');
             const chartData = {
@@ -333,8 +355,10 @@
             window.location.href = `${BACKEND_URL}/auth/steam`;
         });
 
-        document.addEventListener('click', () => {
-            document.querySelectorAll('.game-card.expanded').forEach(card => card.classList.remove('expanded'));
+        gameModal.addEventListener('click', (e) => {
+            if (e.target === gameModal) {
+                hideGameModal();
+            }
         });
 
         window.onload = async () => {
