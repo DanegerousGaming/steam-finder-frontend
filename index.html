@@ -75,7 +75,7 @@
                 <div class="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 class="text-xl font-bold">Matching Games (80%+)</h2>
                     <button id="plan-gamenight-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition text-sm">
-                        <i class="fas fa-calendar-alt mr-2"></i>Plan a Game Night
+                        <i class="fas fa-person-booth mr-2"></i>Democracy Button
                     </button>
                 </div>
                 <div id="genre-filters" class="flex flex-wrap gap-2 mb-4"></div>
@@ -491,19 +491,22 @@
 
             schedulerModalContent.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold">Plan a Game Night</h2>
+                    <h2 class="text-2xl font-bold">Democracy!</h2>
                     <button id="close-scheduler-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
                 </div>
-                <p class="mb-4 text-gray-600">Select a few games and a date to create a shareable event link.</p>
+                <p class="mb-4 text-gray-600">Create a shareable poll for your friends to vote on what to play.</p>
                 <div class="mb-4">
-                    <label class="font-bold">1. Choose Games to Vote On:</label>
+                    <label class="font-bold">1. Games to Vote On:</label>
                     <div class="mt-2 space-y-1">${gameOptionsHTML}</div>
                 </div>
-                <div class="mb-6">
-                    <label for="event-date" class="font-bold">2. Pick a Date & Time:</label>
-                    <input type="datetime-local" id="event-date" class="w-full p-2 border rounded-md mt-2">
+                <div id="poll-link-container" class="hidden mt-6">
+                    <label class="font-bold">2. Share This Link:</label>
+                    <div class="flex items-center mt-2">
+                        <input type="text" id="poll-link-input" class="w-full p-2 border rounded-l-md bg-gray-100" readonly>
+                        <button id="copy-link-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-r-md hover:bg-blue-700">Copy</button>
+                    </div>
                 </div>
-                <button id="create-event-btn" class="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition">Create Sharable Link</button>
+                <button id="create-event-btn" class="w-full mt-6 bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition">Generate Poll Link</button>
             `;
             
             schedulerModal.classList.remove('hidden');
@@ -513,7 +516,7 @@
             }, 10);
 
             document.getElementById('close-scheduler-btn').addEventListener('click', hideSchedulerModal);
-            document.getElementById('create-event-btn').addEventListener('click', createEventLink);
+            document.getElementById('create-event-btn').addEventListener('click', createPollLink);
         }
 
         function hideSchedulerModal() {
@@ -522,26 +525,29 @@
             setTimeout(() => schedulerModal.classList.add('hidden'), 300);
         }
 
-        function createEventLink() {
+        function createPollLink() {
             const selectedGames = Array.from(document.querySelectorAll('input[name="game-vote"]:checked')).map(cb => cb.value);
-            const eventDateInput = document.getElementById('event-date');
-            if (selectedGames.length === 0 || !eventDateInput.value) {
-                alert('Please select at least one game and a date.');
+            if (selectedGames.length === 0) {
+                alert('Please select at least one game to vote on.');
                 return;
             }
             
-            const eventDate = new Date(eventDateInput.value);
-            const formattedDate = eventDate.toLocaleString([], { dateStyle: 'full', timeStyle: 'short' });
+            const pollTitle = "What should we play?";
+            const pollOptions = selectedGames.join('\n');
+            const pollUrl = `https://poll-maker.com/poll/new?question=${encodeURIComponent(pollTitle)}&answers=${encodeURIComponent(pollOptions)}`;
+            
+            const pollLinkContainer = document.getElementById('poll-link-container');
+            const pollLinkInput = document.getElementById('poll-link-input');
+            pollLinkInput.value = pollUrl;
+            pollLinkContainer.classList.remove('hidden');
 
-            const subject = "Game Night!";
-            let body = `Hey everyone,\n\nLet's play something on ${formattedDate}!\n\nVote for what you want to play:\n`;
-            selectedGames.forEach(game => {
-                body += `- ${game}\n`;
+            const copyBtn = document.getElementById('copy-link-btn');
+            copyBtn.addEventListener('click', () => {
+                pollLinkInput.select();
+                document.execCommand('copy');
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => copyBtn.textContent = 'Copy', 2000);
             });
-            body += `\nSee you then!`;
-
-            window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            hideSchedulerModal();
         }
 
 
