@@ -84,8 +84,19 @@
                         <input type="text" id="game-search" class="w-full p-2 border rounded-md mt-1" placeholder="e.g., Counter-Strike 2">
                     </div>
                     <div>
-                        <label for="threshold-slider" class="block text-sm font-medium text-gray-700">Ownership Threshold: <span id="threshold-value">80%</span></label>
-                        <input type="range" id="threshold-slider" min="1" max="100" value="80" class="w-full mt-2">
+                        <label for="threshold-select" class="block text-sm font-medium text-gray-700">Ownership Threshold:</label>
+                        <select id="threshold-select" class="w-full p-2 border rounded-md mt-1">
+                            <option value="1.0">100%</option>
+                            <option value="0.9">90%</option>
+                            <option value="0.8" selected>80%</option>
+                            <option value="0.7">70%</option>
+                            <option value="0.6">60%</option>
+                            <option value="0.5">50%</option>
+                            <option value="0.4">40%</option>
+                            <option value="0.3">30%</option>
+                            <option value="0.2">20%</option>
+                            <option value="0.1">10%</option>
+                        </select>
                     </div>
                 </div>
                 <div id="genre-filters" class="flex flex-wrap gap-2 mb-4"></div>
@@ -162,8 +173,7 @@
         const planGameNightBtn = document.getElementById('plan-gamenight-btn');
         const genreFiltersContainer = document.getElementById('genre-filters');
         const currencySelector = document.getElementById('currency-selector');
-        const thresholdSlider = document.getElementById('threshold-slider');
-        const thresholdValue = document.getElementById('threshold-value');
+        const thresholdSelect = document.getElementById('threshold-select');
         const gameSearchInput = document.getElementById('game-search');
         const saveGroupBtn = document.getElementById('save-group-button');
         const groupNameInput = document.getElementById('group-name');
@@ -274,7 +284,7 @@
 
             sharedGamesGrid.innerHTML = '<div class="loader col-span-full"></div>';
             const allIds = [user.steamid, ...selectedFriendIds];
-            const threshold = thresholdSlider.value / 100;
+            const threshold = thresholdSelect.value;
             const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}&cc=${selectedCurrency.toLowerCase()}&threshold=${threshold}`);
 
             if (data && data.games) {
@@ -644,10 +654,7 @@
             localStorage.setItem('steamCurrency', selectedCurrency);
             if (selectedFriendIds.size > 0) updateSharedGames();
         });
-        thresholdSlider.addEventListener('input', (e) => {
-            thresholdValue.textContent = `${e.target.value}%`;
-        });
-        thresholdSlider.addEventListener('change', updateSharedGames);
+        thresholdSelect.addEventListener('change', updateSharedGames);
         gameSearchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') handleGameSearch();
         });
@@ -678,4 +685,3 @@
     </script>
 </body>
 </html>
-place a few answers. There's nothing more than a mirror of Houston,
