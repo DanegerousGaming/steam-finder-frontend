@@ -118,7 +118,10 @@
                 </div>
                 <div class="mb-6">
                     <label for="saved-groups" class="block font-semibold mb-2">Load Group:</label>
-                    <select id="saved-groups" class="w-full p-2 border rounded-md"></select>
+                    <div class="flex items-center">
+                        <select id="saved-groups" class="w-full p-2 border rounded-l-md"></select>
+                        <button id="delete-group-btn" class="bg-red-500 text-white p-2 rounded-r-md hover:bg-red-600"><i class="fas fa-trash"></i></button>
+                    </div>
                 </div>
                 
                 <div class="mb-6">
@@ -178,6 +181,7 @@
         const saveGroupBtn = document.getElementById('save-group-button');
         const groupNameInput = document.getElementById('group-name');
         const savedGroupsSelect = document.getElementById('saved-groups');
+        const deleteGroupBtn = document.getElementById('delete-group-btn');
         
         // State
         let user = null;
@@ -607,6 +611,20 @@
                 savedGroupsSelect.appendChild(option);
             }
         }
+        
+        function deleteGroup() {
+            const groupName = savedGroupsSelect.value;
+            if (!groupName) {
+                alert('Please select a group to delete.');
+                return;
+            }
+            if (confirm(`Are you sure you want to delete the group "${groupName}"?`)) {
+                delete savedGroups[groupName];
+                localStorage.setItem('steamFriendGroups', JSON.stringify(savedGroups));
+                alert(`Group "${groupName}" deleted.`);
+                loadSavedGroups();
+            }
+        }
 
         function handleGroupLoad(e) {
             const groupName = e.target.value;
@@ -623,7 +641,7 @@
         async function handleGameSearch() {
             const query = gameSearchInput.value.trim();
             if (query.length < 3) {
-                if (query.length === 0) updateSharedGames(); // Go back to normal view if search is cleared
+                if (query.length === 0) updateSharedGames();
                 return;
             }
             if (selectedFriendIds.size === 0) {
@@ -660,6 +678,7 @@
         });
         saveGroupBtn.addEventListener('click', saveGroup);
         savedGroupsSelect.addEventListener('change', handleGroupLoad);
+        deleteGroupBtn.addEventListener('click', deleteGroup);
 
         window.onload = async () => {
             currencySelector.value = selectedCurrency;
