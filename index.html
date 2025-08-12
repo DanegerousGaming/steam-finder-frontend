@@ -73,10 +73,20 @@
 
             <section class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
                 <div class="flex justify-between items-center mb-4 border-b pb-2">
-                    <h2 class="text-xl font-bold">Matching Games (80%+)</h2>
+                    <h2 class="text-xl font-bold">Matching Games</h2>
                     <button id="plan-gamenight-btn" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition text-sm">
                         <i class="fas fa-person-booth mr-2"></i>Democracy Button
                     </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="game-search" class="block text-sm font-medium text-gray-700">Search for a specific game:</label>
+                        <input type="text" id="game-search" class="w-full p-2 border rounded-md mt-1" placeholder="e.g., Counter-Strike 2">
+                    </div>
+                    <div>
+                        <label for="threshold-slider" class="block text-sm font-medium text-gray-700">Ownership Threshold: <span id="threshold-value">80%</span></label>
+                        <input type="range" id="threshold-slider" min="1" max="100" value="80" class="w-full mt-2">
+                    </div>
                 </div>
                 <div id="genre-filters" class="flex flex-wrap gap-2 mb-4"></div>
                 <div id="shared-games-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 h-[40rem] overflow-y-auto p-2">
@@ -86,14 +96,18 @@
 
             <aside class="lg:col-span-1 bg-white p-6 rounded-lg shadow-lg">
                 <h2 class="text-xl font-bold mb-4 border-b pb-2">Group Management</h2>
-                <div class="mb-6">
+                <div class="mb-4">
                     <h3 class="font-semibold mb-2">Selected Friends:</h3>
                     <div id="selected-friends-list" class="flex flex-wrap gap-2"></div>
                 </div>
-                <div class="mb-6">
+                <div class="mb-4">
                     <label for="group-name" class="block font-semibold mb-2">Group Name:</label>
                     <input type="text" id="group-name" class="w-full p-2 border rounded-md" placeholder="e.g., Weekend Warriors">
                     <button id="save-group-button" class="w-full mt-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition">Save Group</button>
+                </div>
+                <div class="mb-6">
+                    <label for="saved-groups" class="block font-semibold mb-2">Load Group:</label>
+                    <select id="saved-groups" class="w-full p-2 border rounded-md"></select>
                 </div>
                 
                 <div class="mb-6">
@@ -148,6 +162,12 @@
         const planGameNightBtn = document.getElementById('plan-gamenight-btn');
         const genreFiltersContainer = document.getElementById('genre-filters');
         const currencySelector = document.getElementById('currency-selector');
+        const thresholdSlider = document.getElementById('threshold-slider');
+        const thresholdValue = document.getElementById('threshold-value');
+        const gameSearchInput = document.getElementById('game-search');
+        const saveGroupBtn = document.getElementById('save-group-button');
+        const groupNameInput = document.getElementById('group-name');
+        const savedGroupsSelect = document.getElementById('saved-groups');
         
         // State
         let user = null;
@@ -157,6 +177,7 @@
         let allSharedGames = [];
         let activeGenreFilter = 'All';
         let selectedCurrency = localStorage.getItem('steamCurrency') || 'AU';
+        let savedGroups = JSON.parse(localStorage.getItem('steamFriendGroups')) || {};
 
         async function apiFetch(endpoint) {
             try {
@@ -221,7 +242,7 @@
             } else {
                 selectedFriendIds.add(friendId);
             }
-            displayFriends(friends); // Re-render to update selection styles
+            displayFriends(friends);
             updateSharedGames();
             updateSelectedFriendsList();
         }
@@ -253,14 +274,15 @@
 
             sharedGamesGrid.innerHTML = '<div class="loader col-span-full"></div>';
             const allIds = [user.steamid, ...selectedFriendIds];
-            const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}&cc=${selectedCurrency.toLowerCase()}`);
+            const threshold = thresholdSlider.value / 100;
+            const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}&cc=${selectedCurrency.toLowerCase()}&threshold=${threshold}`);
 
             if (data && data.games) {
                 allSharedGames = data.games;
                 renderFilteredGames();
                 renderGenreFilters();
             } else {
-                 sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found with at least 80% ownership.</p>`;
+                 sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found for the selected threshold.</p>`;
                  updatePlayerCountList([]);
             }
         }
@@ -494,19 +516,17 @@
                     <h2 class="text-2xl font-bold">Democracy!</h2>
                     <button id="close-scheduler-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
                 </div>
-                <p class="mb-4 text-gray-600">Create a shareable poll for your friends to vote on what to play.</p>
+                <p class="mb-4 text-gray-600">Create a poll for your friends to vote on what to play.</p>
                 <div class="mb-4">
                     <label class="font-bold">1. Games to Vote On:</label>
                     <div class="mt-2 space-y-1">${gameOptionsHTML}</div>
                 </div>
-                <div id="poll-link-container" class="hidden mt-6">
-                    <label class="font-bold">2. Share This Link:</label>
-                    <div class="flex items-center mt-2">
-                        <input type="text" id="poll-link-input" class="w-full p-2 border rounded-l-md bg-gray-100" readonly>
-                        <button id="copy-link-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-r-md hover:bg-blue-700">Copy</button>
-                    </div>
+                <div id="poll-output" class="hidden mt-6">
+                    <label class="font-bold">2. Copy & Paste this into your chat:</label>
+                    <textarea id="poll-textarea" class="w-full p-2 border rounded-md bg-gray-100 mt-2" rows="5" readonly></textarea>
+                    <button id="copy-poll-btn" class="w-full mt-2 bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Copy Poll</button>
                 </div>
-                <button id="create-event-btn" class="w-full mt-6 bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition">Generate Poll Link</button>
+                <button id="create-poll-btn" class="w-full mt-6 bg-purple-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-purple-700 transition">Generate Poll Text</button>
             `;
             
             schedulerModal.classList.remove('hidden');
@@ -516,7 +536,7 @@
             }, 10);
 
             document.getElementById('close-scheduler-btn').addEventListener('click', hideSchedulerModal);
-            document.getElementById('create-event-btn').addEventListener('click', createPollLink);
+            document.getElementById('create-poll-btn').addEventListener('click', createPollText);
         }
 
         function hideSchedulerModal() {
@@ -525,29 +545,90 @@
             setTimeout(() => schedulerModal.classList.add('hidden'), 300);
         }
 
-        function createPollLink() {
+        function createPollText() {
             const selectedGames = Array.from(document.querySelectorAll('input[name="game-vote"]:checked')).map(cb => cb.value);
             if (selectedGames.length === 0) {
                 alert('Please select at least one game to vote on.');
                 return;
             }
             
-            const pollTitle = "What should we play?";
-            const pollOptions = selectedGames.join('\n');
-            const pollUrl = `https://poll-maker.com/poll/new?question=${encodeURIComponent(pollTitle)}&answers=${encodeURIComponent(pollOptions)}`;
-            
-            const pollLinkContainer = document.getElementById('poll-link-container');
-            const pollLinkInput = document.getElementById('poll-link-input');
-            pollLinkInput.value = pollUrl;
-            pollLinkContainer.classList.remove('hidden');
+            let pollText = "Alright team, what are we playing?\n\n";
+            selectedGames.forEach((game, index) => {
+                pollText += `${index + 1}️⃣ ${game}\n`;
+            });
 
-            const copyBtn = document.getElementById('copy-link-btn');
+            const pollOutput = document.getElementById('poll-output');
+            const pollTextarea = document.getElementById('poll-textarea');
+            pollTextarea.value = pollText;
+            pollOutput.classList.remove('hidden');
+
+            const copyBtn = document.getElementById('copy-poll-btn');
             copyBtn.addEventListener('click', () => {
-                pollLinkInput.select();
+                pollTextarea.select();
                 document.execCommand('copy');
                 copyBtn.textContent = 'Copied!';
-                setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+                setTimeout(() => copyBtn.textContent = 'Copy Poll', 2000);
             });
+        }
+
+        function saveGroup() {
+            const name = groupNameInput.value.trim();
+            if (!name) {
+                alert('Please enter a group name.');
+                return;
+            }
+            if (selectedFriendIds.size === 0) {
+                alert('Please select friends to save to the group.');
+                return;
+            }
+            savedGroups[name] = [...selectedFriendIds];
+            localStorage.setItem('steamFriendGroups', JSON.stringify(savedGroups));
+            alert(`Group "${name}" saved!`);
+            groupNameInput.value = '';
+            loadSavedGroups();
+        }
+
+        function loadSavedGroups() {
+            savedGroupsSelect.innerHTML = '<option value="">Load a saved group...</option>';
+            for (const name in savedGroups) {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                savedGroupsSelect.appendChild(option);
+            }
+        }
+
+        function handleGroupLoad(e) {
+            const groupName = e.target.value;
+            if (!groupName) {
+                selectedFriendIds.clear();
+            } else {
+                selectedFriendIds = new Set(savedGroups[groupName]);
+            }
+            displayFriends(friends);
+            updateSharedGames();
+            updateSelectedFriendsList();
+        }
+
+        async function handleGameSearch() {
+            const query = gameSearchInput.value.trim();
+            if (query.length < 3) {
+                if (query.length === 0) updateSharedGames(); // Go back to normal view if search is cleared
+                return;
+            }
+            if (selectedFriendIds.size === 0) {
+                alert('Please select some friends before searching for a game.');
+                return;
+            }
+
+            sharedGamesGrid.innerHTML = '<div class="loader col-span-full"></div>';
+            const allIds = [user.steamid, ...selectedFriendIds];
+            const data = await apiFetch(`/api/search-game?query=${encodeURIComponent(query)}&steamids=${allIds.join(',')}&cc=${selectedCurrency.toLowerCase()}`);
+            
+            allSharedGames = data.games || [];
+            activeGenreFilter = 'All';
+            renderFilteredGames();
+            renderGenreFilters();
         }
 
 
@@ -561,13 +642,21 @@
         currencySelector.addEventListener('change', (e) => {
             selectedCurrency = e.target.value;
             localStorage.setItem('steamCurrency', selectedCurrency);
-            if (selectedFriendIds.size > 0) {
-                updateSharedGames();
-            }
+            if (selectedFriendIds.size > 0) updateSharedGames();
         });
+        thresholdSlider.addEventListener('input', (e) => {
+            thresholdValue.textContent = `${e.target.value}%`;
+        });
+        thresholdSlider.addEventListener('change', updateSharedGames);
+        gameSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleGameSearch();
+        });
+        saveGroupBtn.addEventListener('click', saveGroup);
+        savedGroupsSelect.addEventListener('change', handleGroupLoad);
 
         window.onload = async () => {
             currencySelector.value = selectedCurrency;
+            loadSavedGroups();
             const urlParams = new URLSearchParams(window.location.search);
             const steamid = urlParams.get('steamid');
 
@@ -588,4 +677,5 @@
 
     </script>
 </body>
-</ht
+</html>
+place a few answers. There's nothing more than a mirror of Houston,
