@@ -192,6 +192,7 @@
         let activeGenreFilter = 'All';
         let selectedCurrency = localStorage.getItem('steamCurrency') || 'AU';
         let savedGroups = JSON.parse(localStorage.getItem('steamFriendGroups')) || {};
+        let searchTimeout;
 
         async function apiFetch(endpoint) {
             try {
@@ -303,9 +304,13 @@
         
         function renderFilteredGames() {
             sharedGamesGrid.innerHTML = '';
+            
+            // **FIX**: Filter out DLCs before any other filtering
+            const baseGames = allSharedGames.filter(g => g.type !== 'dlc');
+
             const filteredGames = activeGenreFilter === 'All' 
-                ? allSharedGames 
-                : allSharedGames.filter(g => g.genres && g.genres.some(genre => genre.description === activeGenreFilter));
+                ? baseGames 
+                : baseGames.filter(g => g.genres && g.genres.some(genre => genre.description === activeGenreFilter));
 
             if (filteredGames.length > 0) {
                 const bestMatch = findBestMatch(filteredGames);
@@ -378,7 +383,8 @@
         }
 
         function calculateAveragePlaytime(playtimes, owners) {
-            if (!playtimes || owners.length === 0) return 0;
+            // **FIX**: Add check for playtimes object
+            if (!playtimes || !owners || owners.length === 0) return 0;
             const totalMinutes = owners.reduce((sum, ownerId) => sum + (playtimes[ownerId] || 0), 0);
             return Math.round(totalMinutes / owners.length / 60);
         }
@@ -388,6 +394,8 @@
             let lowestVariance = Infinity;
 
             games.forEach(game => {
+                // **FIX**: Add check for playtimes object
+                if (!game.playtimes) return;
                 const playtimesInHours = game.owners.map(id => (game.playtimes[id] || 0) / 60);
                 if (playtimesInHours.length < 2) return;
 
@@ -640,11 +648,7 @@
 
         async function handleGameSearch() {
             const query = gameSearchInput.value.trim();
-            if (query.length < 3) {
-                if (query.length === 0) updateSharedGames();
-                return;
-            }
-            if (selectedFriendIds.size === 0) {
+            if (selectedFriendIds.size === 0 && query.length > 0) {
                 alert('Please select some friends before searching for a game.');
                 return;
             }
@@ -673,9 +677,19 @@
             if (selectedFriendIds.size > 0) updateSharedGames();
         });
         thresholdSelect.addEventListener('change', updateSharedGames);
-        gameSearchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') handleGameSearch();
+        
+        gameSearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            if (query.length === 0) {
+                updateSharedGames();
+            } else if (query.length >= 3) {
+                searchTimeout = setTimeout(() => {
+                    handleGameSearch();
+                }, 500); // Debounce search to avoid spamming API
+            }
         });
+
         saveGroupBtn.addEventListener('click', saveGroup);
         savedGroupsSelect.addEventListener('change', handleGroupLoad);
         deleteGroupBtn.addEventListener('click', deleteGroup);
