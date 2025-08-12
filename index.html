@@ -305,7 +305,6 @@
         function renderFilteredGames() {
             sharedGamesGrid.innerHTML = '';
             
-            // **FIX**: Filter out DLCs before any other filtering
             const baseGames = allSharedGames.filter(g => g.type !== 'dlc');
 
             const filteredGames = activeGenreFilter === 'All' 
@@ -383,7 +382,6 @@
         }
 
         function calculateAveragePlaytime(playtimes, owners) {
-            // **FIX**: Add check for playtimes object
             if (!playtimes || !owners || owners.length === 0) return 0;
             const totalMinutes = owners.reduce((sum, ownerId) => sum + (playtimes[ownerId] || 0), 0);
             return Math.round(totalMinutes / owners.length / 60);
@@ -394,7 +392,6 @@
             let lowestVariance = Infinity;
 
             games.forEach(game => {
-                // **FIX**: Add check for playtimes object
                 if (!game.playtimes) return;
                 const playtimesInHours = game.owners.map(id => (game.playtimes[id] || 0) / 60);
                 if (playtimesInHours.length < 2) return;
@@ -657,7 +654,7 @@
             const allIds = [user.steamid, ...selectedFriendIds];
             const data = await apiFetch(`/api/search-game?query=${encodeURIComponent(query)}&steamids=${allIds.join(',')}&cc=${selectedCurrency.toLowerCase()}`);
             
-            allSharedGames = data.games || [];
+            allSharedGames = (data && data.games) ? data.games : [];
             activeGenreFilter = 'All';
             renderFilteredGames();
             renderGenreFilters();
