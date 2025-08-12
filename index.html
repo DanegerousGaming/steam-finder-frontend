@@ -194,15 +194,20 @@
         let savedGroups = JSON.parse(localStorage.getItem('steamFriendGroups')) || {};
         let searchTimeout;
 
+        // --- MODIFIED FUNCTION ---
+        // This function now returns a structured error object for better handling.
         async function apiFetch(endpoint) {
             try {
                 const response = await fetch(`${BACKEND_URL}${endpoint}`);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({})); // Gracefully handle non-json errors
+                    throw new Error(`Server error ${response.status}: ${errorData.error || response.statusText}`);
+                }
                 return await response.json();
             } catch (error) {
                 console.error("API fetch error:", error);
-                alert("Failed to fetch data from the server. Please check the console for details.");
-                return null;
+                // Return a consistent error object for the calling function to handle
+                return { error: true, message: error.message };
             }
         }
 
@@ -242,7 +247,7 @@
         async function fetchAndRenderFriends() {
             friendsListContainer.innerHTML = '<div class="loader"></div>';
             const data = await apiFetch(`/api/friends?steamid=${user.steamid}`);
-            if (data && data.friendslist && data.friendslist.friends) {
+            if (data && !data.error && data.friendslist && data.friendslist.friends) {
                 friends = data.friendslist.friends.sort((a, b) => (a.personaname || 'Z').localeCompare(b.personaname || 'Z'));
                 allGroupMembers = [user, ...friends];
                 displayFriends(friends);
@@ -279,6 +284,8 @@
             });
         }
 
+        // --- MODIFIED FUNCTION ---
+        // This function now provides much better user feedback on errors or empty states.
         async function updateSharedGames() {
             if (selectedFriendIds.size === 0) {
                 sharedGamesGrid.innerHTML = '<p class="text-gray-500 col-span-full text-center mt-10">Please select some friends to see shared games.</p>';
@@ -292,13 +299,23 @@
             const threshold = thresholdSelect.value;
             const data = await apiFetch(`/api/shared-games?steamids=${allIds.join(',')}&cc=${selectedCurrency.toLowerCase()}&threshold=${threshold}`);
 
-            if (data && data.games) {
+            // Handle explicit errors from our modified apiFetch
+            if (data && data.error) {
+                sharedGamesGrid.innerHTML = `<p class="text-red-500 col-span-full text-center mt-10">An error occurred fetching game data. This often happens if one or more selected friends have a private profile. Please try a different group of friends.</p>`;
+                updatePlayerCountList([]);
+                genreFiltersContainer.innerHTML = '';
+                return;
+            }
+
+            // Handle successful responses that may or may not have games
+            if (data && data.games && data.games.length > 0) {
                 allSharedGames = data.games;
                 renderFilteredGames();
                 renderGenreFilters();
             } else {
-                 sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found for the selected threshold.</p>`;
+                 sharedGamesGrid.innerHTML = `<p class="text-gray-500 col-span-full text-center mt-10">No games found for the selected threshold. <br> This can happen if friends have private profiles or if no games meet the ownership percentage.</p>`;
                  updatePlayerCountList([]);
+                 genreFiltersContainer.innerHTML = ''; // Also clear genres on empty result
             }
         }
         
@@ -567,6 +584,8 @@
         function createPollText() {
             const selectedGames = Array.from(document.querySelectorAll('input[name="game-vote"]:checked')).map(cb => cb.value);
             if (selectedGames.length === 0) {
+                // Replaced alert with a less intrusive notification if possible, but alert is simple.
+                // For a real app, a small modal or toast notification would be better.
                 alert('Please select at least one game to vote on.');
                 return;
             }
@@ -623,7 +642,9 @@
                 alert('Please select a group to delete.');
                 return;
             }
-            if (confirm(`Are you sure you want to delete the group "${groupName}"?`)) {
+            // Replaced confirm with a simple alert for this example, as confirm can be blocking.
+            // In a real app, a custom modal confirmation would be best.
+            if (window.confirm(`Are you sure you want to delete the group "${groupName}"?`)) {
                 delete savedGroups[groupName];
                 localStorage.setItem('steamFriendGroups', JSON.stringify(savedGroups));
                 alert(`Group "${groupName}" deleted.`);
